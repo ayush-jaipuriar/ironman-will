@@ -4,8 +4,8 @@ Sources: `Iron Will Core Platform PRD.pdf`, `Iron Will UI Framework PRD.pdf`, `A
 
 ## Core Platform (Spring Boot backend + FastAPI agent)
 - Vision: “Ruthless accountability” system; Java Spring Boot as system-of-record, FastAPI agent as unbiased judge; synchronous REST pipeline for MVP (frontend → Java → Python).
-- Stack/infra: Next.js + Tailwind frontend; Spring Boot 3.x (OAuth2 Google, Security 6), Postgres 15 (Cloud SQL), GCS for proofs (lifecycle delete >60 days), Cloud Run for services.
-- Key modules: Identity (Google OAuth2 only, timezone pushed from client every login), Contract/Goal as “signed contract” with JSONB criteria and state machine (ACTIVE/LOCKED/ARCHIVED), Audit Submission loop (upload → GCS → agent call → verdict), Scoring (+0.5 pass, -0.2 fail, -1.0 missed; lockout if score <3 for 24h), Notifications (“Nag” scheduler every 15m; frontend polls unread).
+- Stack/infra: Next.js + Tailwind frontend; Spring Boot 3.x (Security 6) with Google OAuth2 + email/password; Postgres 15 (Cloud SQL, single env for now), GCS for proofs (lifecycle delete >60 days), Cloud Run for services.
+- Key modules: Identity (Google OAuth2 + credentials; timezone pushed from client every login), Contract/Goal as “signed contract” with JSONB criteria and state machine (ACTIVE/LOCKED/ARCHIVED), Audit Submission loop (upload → GCS → agent call → verdict), Scoring (+0.5 pass, -0.2 fail, -1.0 missed; lockout if score <3 for 24h, read-only UI), Notifications (“Nag” scheduler every 15m; frontend polls unread every 60s).
 - Data model: Tables for users (timezone, accountability_score), goals (review_time UTC, criteria_config JSONB, locked_until), audit_logs (one per goal per day, status PENDING/VERIFIED/REJECTED/MISSED, score_impact), notifications (is_read).
 - Agent contract: POST `/internal/agent/audit` with user/goal context, proof_url, timezone; expects PASS/FAIL, remarks, extracted_data, score_impact; Java treats 500 as retry-safe, 400 as immediate reject.
 - Roadmap highlights: Spring project init, OAuth/timezone controller, goal/score/lockout services, GCS upload + hashed filenames, orchestration controller for audit, scheduler for nagging.
@@ -18,7 +18,7 @@ Sources: `Iron Will Core Platform PRD.pdf`, `Iron Will UI Framework PRD.pdf`, `A
   - Contract (Create Habit): mission-style config panel; time dial wheel; criteria rendered as code blocks; sharp “INITIATE CONTRACT” button.
   - Auditor (Upload & Verify): dropzone → analyzing laser scan with typewriter status → verdict (green APPROVED stamp / red glitch REJECTED).
   - Lockout: full-screen crimson glitch overlay, countdown timer, disabled controls.
-- Architecture guidance: Next.js 14 (app dir), Tailwind + clsx + tailwind-merge; Zustand for auth/score global store; TanStack Query for polling (notifications) and server state; Framer Motion for heavy “mechanical” motion; React Three Fiber/Canvas for avatar.
+- Architecture guidance: Next.js 14 (app dir), Tailwind + clsx + tailwind-merge; Zustand for auth/score/lockout; TanStack Query for polling (notifications at 60s) and server state; Framer Motion for heavy “mechanical” motion; React Three Fiber/Canvas for avatar.
 - Suggested file tree: `/app/login`, `/app/dashboard`, `/app/contract`, `/app/lockout`; components/ui (BioButton, GlassCard), features (AuditScanner, ScoreBar, TimeDial), canvas (AgentSphere), lib/store, hooks (useInterval/useLockout), globals.css for scanlines/glitch keyframes.
 
 ## Agent Service (FastAPI + LangGraph)
@@ -39,11 +39,11 @@ Sources: `Iron Will Core Platform PRD.pdf`, `Iron Will UI Framework PRD.pdf`, `A
 ## Immediate Implementation Slices (cross-PRD)
 - Backend: Spring Boot auth (Google OAuth2), timezone endpoint, core entities/services, audit upload endpoint calling agent, GCS upload with hashed names, score/lockout enforcement, notifications polling API stub.
 - Frontend: Next.js app shell with routes (login, dashboard, contract, lockout), Tailwind theme per palette, ScoreBar + GoalCard + AuditScanner components, React Query hooks for audits/notifications, Zustand store for auth/score/lockout flag, loading/analyzing skeletons.
-- Agent: FastAPI `/audit` implementing vision->logic->memory->voice pipeline with deterministic comparison and persona response; pgvector memory stub; config via env/Secret Manager; mockable Gemini client for tests.
+- Agent: FastAPI `/audit` implementing vision->logic->memory->voice pipeline with deterministic comparison and persona response; pgvector memory in same Cloud SQL; config via env/Secret Manager; mockable Gemini client for tests; safety BLOCK_NONE.
 
 ## Next Steps
-- Confirm GCP project/bucket/DB names and secrets handling approach for local vs Cloud Run.
-- Decide Vercel vs Cloud Run for frontend hosting (PRD allows both).
+- Confirm GCP project/bucket/DB names and secrets handling approach for local vs Cloud Run; single env first.
+- Frontend hosting: proceed with Cloud Run (all GCP).
 - Align data contracts between Spring Boot `/internal/agent/audit` and agent `/internal/judge/audit` (field naming, status values) before client integration.
 - Define minimal sample goals/criteria to seed dev/test environments (e.g., sleep score >=85).
 
