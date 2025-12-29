@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Biohacker Analysis</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#40f320",
+                        "primary-dim": "#2aa115",
+                        "background-light": "#f6f8f5",
+                        "background-dark": "#050a04", // Slightly darker than requested to match "cinematic" feel
+                        "surface-dark": "#0d140c",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "mono": ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"],
+                    },
+                    backgroundImage: {
+                        'grid-pattern': "linear-gradient(to right, #132210 1px, transparent 1px), linear-gradient(to bottom, #132210 1px, transparent 1px)",
+                    },
+                    boxShadow: {
+                        'neon': '0 0 10px theme("colors.primary"), 0 0 20px theme("colors.primary")',
+                        'neon-sm': '0 0 5px theme("colors.primary")',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom styles for specific glowing effects that might be tricky with just tailwind utilities */
+        .scan-line {
+            background: linear-gradient(to right, transparent, #40f320, transparent);
+            box-shadow: 0 0 15px #40f320;
+        }
+        .hud-corner {
+            border-color: #40f320;
+        }
+        .eye-core {
+            background: radial-gradient(circle, #ffffff 0%, #40f320 40%, #132210 100%);
+            box-shadow: 0 0 30px #40f320;
+        }
+        .beam-projection {
+            background: linear-gradient(to top, rgba(64, 243, 32, 0.15) 0%, transparent 100%);
+            clip-path: polygon(20% 100%, 80% 100%, 100% 0, 0 0);
+        }
+        .scrolling-code {
+            -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+            mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen font-display text-white overflow-hidden selection:bg-primary selection:text-black">
+<div class="relative flex h-full min-h-screen w-full flex-col max-w-md mx-auto shadow-2xl overflow-hidden bg-background-dark border-x border-[#1a2e18]">
+<!-- Background Grid -->
+<div class="absolute inset-0 bg-grid-pattern bg-[length:40px_40px] opacity-20 pointer-events-none"></div>
+<div class="absolute inset-0 bg-gradient-to-b from-transparent via-background-dark/50 to-background-dark pointer-events-none"></div>
+<!-- Header -->
+<div class="relative z-20 flex items-center bg-background-dark/90 backdrop-blur-md p-4 border-b border-[#1a2e18]">
+<div class="text-primary/80 flex size-12 shrink-0 items-center justify-start">
+<span class="material-symbols-outlined hover:text-primary cursor-pointer transition-colors">arrow_back</span>
+</div>
+<h2 class="text-white text-sm font-bold tracking-[0.2em] flex-1 text-center opacity-80">PROTOCOL v2.0</h2>
+<div class="flex w-12 items-center justify-end">
+<span class="material-symbols-outlined text-primary" style="font-size: 20px;">wifi_tethering</span>
+</div>
+</div>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col relative z-10 overflow-y-auto no-scrollbar">
+<!-- TOP HALF: SCANNER -->
+<div class="p-4 pt-6 relative group">
+<!-- HUD Brackets Top -->
+<div class="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 hud-corner z-20"></div>
+<div class="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 hud-corner z-20"></div>
+<!-- Card Container -->
+<div class="relative rounded-lg overflow-hidden border border-[#2a3928] bg-surface-dark shadow-2xl">
+<!-- Image -->
+<div class="w-full aspect-[4/5] bg-cover bg-center opacity-80 mix-blend-luminosity relative" data-alt="Abstract data visualization showing sleep cycles and heart rate graphs" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBeD9-5s7HGPsgA7ifNdqwPf6Yya85ROpuhFwHiRs_L4m1rHBmQt2C7Mb9tND9TajXDQuRHyF1RlkLOcUhH9VuFsI1jOJHNC-03UINa4v3IaczBv5t98QNR8WiKCS1ciPOnSsouNH3VOEmp20Wxo7bWwZkt-7f-oBirqSSFnTr3ZbYEzQzybI-Osn1JSFsU1x35q8OfVt96QiqzGLqXSMQIZ1wnZzMjO_pGFZLOcWgLwYl8bc2zzliOnqTPuIfNUIRD09Efwf8K3w");'>
+<!-- Image Overlay Gradient -->
+<div class="absolute inset-0 bg-[#050a04]/40"></div>
+<!-- Grid Overlay on Image -->
+<div class="absolute inset-0 bg-[linear-gradient(rgba(64,243,32,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(64,243,32,0.1)_1px,transparent_1px)] bg-[size:20px_20px]"></div>
+<!-- Scan Line (The Laser) -->
+<div class="absolute top-[45%] left-0 w-full h-[2px] scan-line z-30 flex items-center justify-end pr-2">
+<span class="text-[10px] text-primary bg-black/80 px-1 font-mono">SCANNING_LAYER_04</span>
+</div>
+<!-- Scan Effect Gradient below line -->
+<div class="absolute top-[45%] left-0 w-full h-16 bg-gradient-to-b from-primary/20 to-transparent pointer-events-none z-20"></div>
+<!-- Data Extraction Point 1 -->
+<div class="absolute top-[30%] left-[20%] z-30 flex flex-col items-center">
+<div class="w-12 h-12 border border-primary/50 rounded-full flex items-center justify-center animate-pulse">
+<div class="w-1 h-1 bg-primary rounded-full"></div>
+</div>
+<div class="absolute top-12 left-6 w-16 h-[1px] bg-primary/50 -rotate-45 origin-top-left"></div>
+<span class="absolute top-20 left-12 bg-black/80 border border-primary/30 text-primary text-[10px] px-2 py-0.5 rounded backdrop-blur whitespace-nowrap">
+                                REM_SPIKE
+                            </span>
+</div>
+<!-- Data Extraction Point 2 -->
+<div class="absolute top-[60%] right-[25%] z-30 flex flex-col items-center">
+<div class="w-8 h-8 border border-dashed border-white/50 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-[14px]">close</span>
+</div>
+<span class="absolute -top-6 right-0 text-white/70 text-[10px] tracking-widest font-mono">HRV_LOW</span>
+</div>
+</div>
+</div>
+<!-- HUD Brackets Bottom -->
+<div class="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 hud-corner z-20"></div>
+<div class="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 hud-corner z-20"></div>
+</div>
+<!-- Chips / Extracted Data -->
+<div class="px-6 py-2 flex gap-3 overflow-x-auto no-scrollbar mask-gradient">
+<div class="flex items-center gap-2 bg-[#1a2e18] border border-primary/20 rounded px-3 py-1 shrink-0">
+<span class="material-symbols-outlined text-primary text-[16px]">check_circle</span>
+<span class="text-xs font-bold text-primary tracking-wider">REM DETECTED</span>
+</div>
+<div class="flex items-center gap-2 bg-[#1a2e18] border border-red-500/30 rounded px-3 py-1 shrink-0">
+<span class="material-symbols-outlined text-red-400 text-[16px]">warning</span>
+<span class="text-xs font-bold text-red-400 tracking-wider">CORTISOL SPIKE</span>
+</div>
+<div class="flex items-center gap-2 bg-[#1a2e18] border border-primary/20 rounded px-3 py-1 shrink-0">
+<span class="text-xs font-mono text-primary/70">SYNC: 100%</span>
+</div>
+</div>
+<!-- Spacer / Connector Beam -->
+<div class="relative h-24 w-full flex justify-center overflow-hidden">
+<!-- The Beam -->
+<div class="beam-projection w-[60%] h-full absolute bottom-0 z-0"></div>
+<!-- Floating Particles (Simulated with simple dots) -->
+<div class="absolute w-1 h-1 bg-primary rounded-full bottom-4 left-[45%] opacity-50"></div>
+<div class="absolute w-1 h-1 bg-white rounded-full bottom-12 left-[52%] opacity-30"></div>
+<div class="absolute w-1 h-1 bg-primary rounded-full bottom-8 right-[46%] opacity-60"></div>
+</div>
+<!-- BOTTOM HALF: AI INTERFACE -->
+<div class="flex-1 flex flex-col items-center justify-start pb-8 relative">
+<!-- The Eye (AI Avatar) -->
+<div class="relative w-24 h-24 flex items-center justify-center mb-6 z-10">
+<!-- Outer Ring Rotating -->
+<div class="absolute inset-0 rounded-full border border-dashed border-primary/30 animate-[spin_10s_linear_infinite]"></div>
+<!-- Middle Ring -->
+<div class="absolute inset-2 rounded-full border-2 border-primary/20"></div>
+<!-- Inner Glow Container -->
+<div class="absolute inset-4 rounded-full border border-primary bg-[#050a04] flex items-center justify-center shadow-neon-sm">
+<!-- The Iris/Pupil -->
+<div class="w-6 h-6 rounded-full eye-core animate-pulse"></div>
+</div>
+<!-- Crosshair Overlay -->
+<div class="absolute w-full h-[1px] bg-primary/20"></div>
+<div class="absolute h-full w-[1px] bg-primary/20"></div>
+</div>
+<!-- Headline -->
+<h2 class="text-white tracking-[0.1em] text-xl font-bold leading-tight px-4 text-center mb-2 animate-pulse">
+                    ANALYZING BIOMETRICS...
+                </h2>
+<p class="text-primary/60 text-xs font-mono tracking-widest mb-6">
+                    EXTRACTING SLEEP ARCHITECTURE
+                </p>
+<!-- Progress Bar Container -->
+<div class="w-full px-8 mb-6">
+<div class="flex justify-between items-end mb-2">
+<span class="text-[10px] text-gray-400 font-mono">DECRYPTION_KEY_XA9</span>
+<span class="text-sm font-bold text-primary">72%</span>
+</div>
+<div class="h-1 w-full bg-[#1a2e18] rounded-full overflow-hidden">
+<div class="h-full bg-primary shadow-[0_0_10px_#40f320]" style="width: 72%"></div>
+</div>
+</div>
+<!-- Micro Data Streams (Decoration) -->
+<div class="w-full px-8 grid grid-cols-2 gap-4 opacity-40">
+<div class="font-mono text-[9px] text-primary leading-tight text-right border-r border-primary/30 pr-2">
+<p>0x4A1F...OK</p>
+<p>NEURAL...SYNC</p>
+<p>DELTA...WAVE</p>
+</div>
+<div class="font-mono text-[9px] text-white leading-tight pl-2">
+<p>&gt; PARSING LOG</p>
+<p>&gt; COMPARING...</p>
+<p>&gt; DETECTING</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Tab / Controls (Static for visual balance) -->
+<div class="relative z-20 h-16 border-t border-[#1a2e18] bg-background-dark flex items-center justify-around px-6">
+<button class="flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined text-primary group-hover:drop-shadow-[0_0_5px_rgba(64,243,32,0.8)] transition-all">analytics</span>
+<span class="text-[8px] font-bold tracking-widest text-white/50">SCAN</span>
+</button>
+<button class="flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined text-white/30 group-hover:text-white transition-colors">history</span>
+<span class="text-[8px] font-bold tracking-widest text-white/30">LOGS</span>
+</button>
+<button class="flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined text-white/30 group-hover:text-white transition-colors">tune</span>
+<span class="text-[8px] font-bold tracking-widest text-white/30">TUNE</span>
+</button>
+</div>
+</div>
+</body></html>

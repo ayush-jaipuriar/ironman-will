@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Biohacker Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Noto+Sans:wght@400;500;600;700&amp;family=Space+Mono:ital,wght@0,400;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#40f320",
+                        "primary-dim": "rgba(64, 243, 32, 0.3)",
+                        "primary-glow": "rgba(64, 243, 32, 0.6)",
+                        "background-light": "#f6f8f5",
+                        "background-dark": "#050505",
+                        "surface-dark": "#121811",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "mono": ["Space Mono", "monospace"],
+                        "sans": ["Noto Sans", "sans-serif"],
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                    backgroundImage: {
+                        'scan-grid': 'linear-gradient(to right, rgba(64, 243, 32, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(64, 243, 32, 0.1) 1px, transparent 1px)',
+                        'hex-pattern': 'url("data:image/svg+xml,%3Csvg width=\'24\' height=\'40\' viewBox=\'0 0 24 40\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 40c5.523 0 10-4.477 10-10V10c0-5.523-4.477-10-10-10s-10 4.477-10 10v20c0 5.523 4.477 10 10 10z\' fill=\'%2340f320\' fill-opacity=\'0.03\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom Animations */
+        @keyframes scan-move {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        @keyframes blink-random {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        @keyframes glitch-text {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+
+        .scan-line {
+            animation: scan-move 3s linear infinite;
+        }
+
+        .pulse-circle {
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        
+        .blink-fast {
+            animation: blink-random 0.3s steps(1) infinite;
+        }
+
+        .glitch-effect:hover {
+            animation: glitch-text 0.3s cubic-bezier(.25, .46, .45, .94) both infinite;
+        }
+        
+        /* Hide scrollbar for cleaner look */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display overflow-hidden selection:bg-primary selection:text-black">
+<div class="relative flex h-screen w-full flex-col max-w-md mx-auto overflow-hidden shadow-2xl bg-background-dark border-x border-white/5">
+<!-- HUD Overlay Elements (Fixed) -->
+<div class="absolute top-0 left-0 w-8 h-8 border-l-2 border-t-2 border-primary/40 rounded-tl-lg m-4 pointer-events-none z-50"></div>
+<div class="absolute top-0 right-0 w-8 h-8 border-r-2 border-t-2 border-primary/40 rounded-tr-lg m-4 pointer-events-none z-50"></div>
+<div class="absolute bottom-0 left-0 w-8 h-8 border-l-2 border-b-2 border-primary/40 rounded-bl-lg m-4 pointer-events-none z-50"></div>
+<div class="absolute bottom-0 right-0 w-8 h-8 border-r-2 border-b-2 border-primary/40 rounded-br-lg m-4 pointer-events-none z-50"></div>
+<!-- Subtle Grid Background -->
+<div class="absolute inset-0 bg-[size:40px_40px] bg-scan-grid opacity-20 pointer-events-none z-0"></div>
+<!-- Header -->
+<header class="flex items-center justify-between p-6 pb-2 z-20 relative bg-gradient-to-b from-background-dark to-transparent">
+<button class="text-white/70 hover:text-primary transition-colors flex items-center justify-center p-2 rounded-full hover:bg-white/5">
+<span class="material-symbols-outlined !text-[24px]">arrow_back</span>
+</button>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="text-xs font-mono text-primary tracking-widest uppercase">sys_active</span>
+</div>
+<button class="text-white/70 hover:text-primary transition-colors flex items-center justify-center p-2 rounded-full hover:bg-white/5">
+<span class="material-symbols-outlined !text-[24px]">settings</span>
+</button>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col relative z-10 px-4 py-2 gap-4 h-full">
+<!-- Top Half: Scanning Area -->
+<div class="relative flex-1 rounded-xl overflow-hidden border border-white/10 bg-surface-dark group">
+<!-- Data Tag -->
+<div class="absolute top-3 left-3 z-30 bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-mono text-primary border border-primary/20">
+                    SRC: SLEEP_LOG_04.IMG
+                </div>
+<!-- Coordinates -->
+<div class="absolute top-3 right-3 z-30 text-[10px] font-mono text-white/40 flex flex-col items-end">
+<span>X: 45.201</span>
+<span>Y: 88.192</span>
+</div>
+<!-- Image to Scan -->
+<div class="absolute inset-0 z-0 opacity-60 mix-blend-luminosity" data-alt="Abstract sleep data chart displaying peaks and troughs of REM cycles against a dark grid" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBKM8NWNCXX-OpkRkGGMpB8djxau81YUk5zL6p8GD859p2FJkecbUP26R-93klv70nge8veaj2s_9GR98euBI-QEtIpG4yWWTuK_jlEteLb8odBKAB7xyEahVPY22a8DrjqWH4lqp8FlL8okUx-fdEBRdYzQCL9Nb3LZXteHYa_zD2vcidrtQZLCN2lwqcejfpQuFx73NGgWwNqmORsdnlIaHrDB7_vyMJHOonieNZ392gU3IsCa8u6lPcwCRz2RDZHgRMtsW7aTw'); background-size: cover; background-position: center;">
+</div>
+<!-- Scanning Overlay FX -->
+<div class="absolute inset-0 z-10 bg-gradient-to-b from-transparent via-primary/5 to-transparent"></div>
+<!-- Laser Scan Line -->
+<div class="absolute left-0 w-full h-1 bg-primary shadow-[0_0_15px_2px_rgba(64,243,32,0.8)] z-20 scan-line">
+<div class="absolute right-0 -top-2 bg-primary text-black text-[8px] font-bold px-1">SCANNING</div>
+</div>
+<!-- Data Extraction Points (Simulated) -->
+<div class="absolute top-1/3 left-1/4 w-8 h-8 border border-primary/60 rounded-full flex items-center justify-center animate-ping z-20"></div>
+<div class="absolute top-1/3 left-1/4 w-2 h-2 bg-primary rounded-full z-20"></div>
+<div class="absolute bottom-1/3 right-1/4 w-12 h-12 border border-dashed border-primary/40 rounded-sm flex items-center justify-center z-20">
+<span class="material-symbols-outlined text-primary text-xs blink-fast">close</span>
+</div>
+<!-- Gradient Fade to Bottom -->
+<div class="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-background-dark to-transparent z-20"></div>
+</div>
+<!-- Connector Beam Area -->
+<div class="h-12 w-full relative flex justify-center items-center -my-4 z-0">
+<!-- The beam of light -->
+<div class="w-1 h-full bg-gradient-to-t from-primary/80 to-transparent blur-[2px]"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/10 to-transparent w-32 mx-auto blur-xl"></div>
+</div>
+<!-- Bottom Half: AI Interface -->
+<div class="flex-1 flex flex-col items-center justify-end pb-8 relative">
+<!-- Scrolling Data Column (Decoration) -->
+<div class="absolute top-0 right-0 h-32 w-16 overflow-hidden opacity-30 pointer-events-none mask-image-gradient">
+<div class="font-mono text-[8px] text-primary leading-tight text-right pr-2">
+                        0x4F12<br/>0x99A1<br/>RECOV<br/>98%<br/>0x1B2C<br/>SYNC<br/>...<br/>0xFF01<br/>HLTH<br/>OK
+                    </div>
+</div>
+<!-- AI Lens / Eye -->
+<div class="relative w-32 h-32 mb-8 flex items-center justify-center">
+<!-- Outer rotating ring -->
+<div class="absolute inset-0 border border-primary/30 rounded-full w-full h-full animate-[spin_10s_linear_infinite]"></div>
+<div class="absolute inset-0 border-t border-b border-primary/60 rounded-full w-full h-full animate-[spin_4s_linear_infinite_reverse]"></div>
+<!-- Inner pulsing core -->
+<div class="absolute w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center backdrop-blur-md border border-primary/40 shadow-[0_0_30px_rgba(64,243,32,0.2)]">
+<div class="w-8 h-8 bg-primary rounded-full shadow-[0_0_20px_rgba(64,243,32,1)] animate-pulse"></div>
+</div>
+<!-- Pulse rings -->
+<div class="absolute w-full h-full border border-primary/20 rounded-full pulse-circle"></div>
+<!-- Targeting reticle lines -->
+<div class="absolute w-[140%] h-[1px] bg-primary/20"></div>
+<div class="absolute h-[140%] w-[1px] bg-primary/20"></div>
+</div>
+<!-- Status Text -->
+<div class="w-full text-center space-y-2 z-20">
+<h2 class="text-primary text-2xl font-bold tracking-widest glitch-effect">ANALYZING BIOMETRICS...</h2>
+<p class="text-white/60 text-sm font-mono tracking-wide">Correlating REM cycles with recovery data.</p>
+</div>
+<!-- Progress Bar -->
+<div class="w-full max-w-xs mt-6 space-y-2 z-20">
+<div class="flex justify-between text-[10px] font-mono text-primary/70 uppercase">
+<span>Processing</span>
+<span>45%</span>
+</div>
+<div class="h-1 w-full bg-surface-dark rounded overflow-hidden border border-white/10 relative">
+<!-- Striped progress bar -->
+<div class="h-full bg-primary w-[45%] relative overflow-hidden">
+<div class="absolute inset-0 bg-[length:10px_10px] bg-[linear-gradient(45deg,rgba(0,0,0,0.2)_25%,transparent_25%,transparent_50%,rgba(0,0,0,0.2)_50%,rgba(0,0,0,0.2)_75%,transparent_75%,transparent)] animate-[pulse_2s_linear_infinite]"></div>
+</div>
+</div>
+</div>
+<!-- Action Button -->
+<div class="mt-8 z-20">
+<button class="group relative px-8 py-3 bg-transparent overflow-hidden rounded text-white text-sm font-bold tracking-widest uppercase border border-white/10 hover:border-red-500/50 transition-colors">
+<span class="relative z-10 group-hover:text-red-400 transition-colors">Cancel Scan</span>
+<div class="absolute inset-0 bg-red-500/10 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300"></div>
+</button>
+</div>
+</div>
+</main>
+</div>
+</body></html>
