@@ -57,5 +57,9 @@ public class ScoreService {
         });
         goalRepository.saveAll(goals);
     }
+
+    public BigDecimal getLockThreshold() {
+        return LOCK_THRESHOLD;
+    }
 }
 

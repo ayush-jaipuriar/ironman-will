@@ -3,6 +3,9 @@ package com.ironwill.core.api;
 import com.ironwill.core.api.dto.AuthRequest;
 import com.ironwill.core.api.dto.AuthResponse;
 import com.ironwill.core.api.dto.UserProfileResponse;
+import com.ironwill.core.model.GoalStatus;
+import com.ironwill.core.model.User;
+import com.ironwill.core.repository.UserRepository;
 import com.ironwill.core.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +29,7 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final UserRepository userRepository;
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest request) {
@@ -46,7 +50,22 @@ public class AuthController {
         if (auth == null || !(auth.getPrincipal() instanceof UserDetails ud)) {
             return ResponseEntity.status(401).build();
         }
-        var profile = new UserProfileResponse(ud.getUsername());
+        User user = userRepository.findByEmail(ud.getUsername())
+                .orElseThrow(() -> new IllegalStateException("User not found"));
+        boolean locked = user.getGoals().stream().anyMatch(g -> g.getStatus() == GoalStatus.LOCKED);
+        var profile = new UserProfileResponse(
+                user.getEmail(),
+                user.getFullName(),
+                user.getTimezone(),
+                user.getAccountabilityScore(),
+                locked,
+                user.getGoals().stream()
+                        .filter(g -> g.getLockedUntil() != null)
+                        .map(g -> g.getLockedUntil())
+                        .max(java.time.OffsetDateTime::compareTo)
+                        .orElse(null),
+                user.getRoles().stream().map(r -> r.getName().name()).toList()
+        );
         return ResponseEntity.ok(profile);
     }
 }

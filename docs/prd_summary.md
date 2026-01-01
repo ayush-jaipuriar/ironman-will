@@ -4,11 +4,18 @@ Sources: `Iron Will Core Platform PRD.pdf`, `Iron Will UI Framework PRD.pdf`, `A
 
 ## Core Platform (Spring Boot backend + FastAPI agent)
 - Vision: “Ruthless accountability” system; Java Spring Boot as system-of-record, FastAPI agent as unbiased judge; synchronous REST pipeline for MVP (frontend → Java → Python).
-- Stack/infra: Next.js + Tailwind frontend; Spring Boot 3.x (Security 6) with Google OAuth2 + email/password; Postgres 15 (Cloud SQL, single env for now), GCS for proofs (lifecycle delete >60 days), Cloud Run for services.
-- Key modules: Identity (Google OAuth2 + credentials; timezone pushed from client every login), Contract/Goal as “signed contract” with JSONB criteria and state machine (ACTIVE/LOCKED/ARCHIVED), Audit Submission loop (upload → GCS → agent call → verdict), Scoring (+0.5 pass, -0.2 fail, -1.0 missed; lockout if score <3 for 24h, read-only UI), Notifications (“Nag” scheduler every 15m; frontend polls unread every 60s).
+- Stack/infra: Next.js + Tailwind frontend; Spring Boot 3.x (Security 6) with Google OAuth2 + email/password; Postgres (Cloud SQL, single env for now), GCS for proofs (lifecycle delete >60 days), Cloud Run for services.
+- Key modules (implemented): Identity (Google OAuth2 + credentials; timezone pushed from client every login), Contract/Goal with JSONB criteria and state machine (ACTIVE/LOCKED/ARCHIVED), Audit Submission loop (upload → GCS → agent call → verdict), Scoring (+0.5 pass, -0.2 fail; lockout if score <3 for 24h, read-only UI), Notifications (“Nag” scheduler every 15m; frontend polls unread every 60s).
 - Data model: Tables for users (timezone, accountability_score), goals (review_time UTC, criteria_config JSONB, locked_until), audit_logs (one per goal per day, status PENDING/VERIFIED/REJECTED/MISSED, score_impact), notifications (is_read).
-- Agent contract: POST `/internal/agent/audit` with user/goal context, proof_url, timezone; expects PASS/FAIL, remarks, extracted_data, score_impact; Java treats 500 as retry-safe, 400 as immediate reject.
-- Roadmap highlights: Spring project init, OAuth/timezone controller, goal/score/lockout services, GCS upload + hashed filenames, orchestration controller for audit, scheduler for nagging.
+- Agent contract (current client): POST `/internal/agent/audit` with context, proof_url, timezone; expects PASS/FAIL, remarks, extracted_data, score_impact; timeouts/errors treated as technical difficulty (no penalty).
+- Implemented highlights: Core entities/repos; auth (JWT + Google OAuth2) with `/auth/me` profile; audit endpoint with file validation, GCS upload, Agent call, score/lockout update; notifications endpoints + 15m scheduler (TZ-aware, night skip); CORS/upload guard; lockout threshold exposed to client.
+- Implementation map (core code)
+  - Auth/security: `AuthController`, `SecurityConfig`, `JwtService`, `JwtAuthenticationFilter`, `CustomOAuth2UserService`, `OAuth2LoginSuccessHandler`
+  - Domain/repos: `model/*`, `repository/*`
+  - Audit flow: `AuditController`, `StorageService`, `AgentClient`, `ScoreService`
+  - Notifications: `NotificationController`, `NotificationService`, `NagScheduler`
+  - Goals: `GoalController`, `GoalService`
+  - User TZ update: `UserController`
 
 ## UI Framework (Next.js App Router)
 - Design language: Command-interface vibe (utilitarian, intimidating); deep charcoal backgrounds, neon green energy, crimson failure; monospace for metrics; global scanlines, glassmorphism HUD, glow on interaction.

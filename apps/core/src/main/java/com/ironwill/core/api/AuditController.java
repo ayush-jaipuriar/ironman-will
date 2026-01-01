@@ -84,6 +84,11 @@ public class AuditController {
             delta = agentResp.getScore_impact() != null ? agentResp.getScore_impact() : (status == AuditStatus.VERIFIED ? 0.5 : -0.2);
             remarks = agentResp.getRemarks();
             extracted = agentResp.getExtracted_metrics();
+        } else {
+            // Agent failure: treat as technical difficulty, no penalty, do not change status
+            status = AuditStatus.PENDING;
+            delta = 0.0;
+            remarks = "Agent unavailable. Please retry.";
         }
 
         AuditLog log = auditLogRepository.findByGoalAndAuditDate(goal, LocalDate.now())
@@ -101,12 +106,10 @@ public class AuditController {
             scoreService.applyPass(user);
         } else if (status == AuditStatus.REJECTED) {
             scoreService.applyFail(user);
-        } else {
-            scoreService.applyMissed(user); // unlikely here unless agentResp null and treated as missed
-        }
+        } // PENDING/tech difficulty: no score change
 
         return ResponseEntity.ok(new AuditResponseDto(
-                status == AuditStatus.VERIFIED ? "PASS" : "FAIL",
+                status == AuditStatus.VERIFIED ? "PASS" : status == AuditStatus.REJECTED ? "FAIL" : "TECHNICAL_DIFFICULTY",
                 remarks,
                 extracted,
                 delta

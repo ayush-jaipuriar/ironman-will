@@ -4,6 +4,7 @@ import com.ironwill.core.api.dto.GoalRequest;
 import com.ironwill.core.api.dto.GoalResponse;
 import com.ironwill.core.model.Goal;
 import com.ironwill.core.model.GoalStatus;
+import com.ironwill.core.service.ScoreService;
 import com.ironwill.core.model.User;
 import com.ironwill.core.service.CurrentUserService;
 import com.ironwill.core.service.GoalService;
@@ -22,6 +23,7 @@ public class GoalController {
 
     private final GoalService goalService;
     private final CurrentUserService currentUserService;
+    private final ScoreService scoreService;
 
     @GetMapping
     public ResponseEntity<List<GoalResponse>> list(@RequestParam(value = "status", required = false) GoalStatus status) {
@@ -64,7 +66,9 @@ public class GoalController {
                 g.getReviewTime(),
                 g.getFrequencyType(),
                 g.getStatus(),
-                g.getCriteriaConfig()
+                g.getCriteriaConfig(),
+                g.getLockedUntil(),
+                scoreService.getLockThreshold()
         );
     }
 }

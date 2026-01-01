@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Getter
@@ -20,5 +21,7 @@ public class GoalResponse {
     private FrequencyType frequencyType;
     private GoalStatus status;
     private JsonNode criteriaConfig;
+    private OffsetDateTime lockedUntil;
+    private java.math.BigDecimal lockThreshold;
 }
 
