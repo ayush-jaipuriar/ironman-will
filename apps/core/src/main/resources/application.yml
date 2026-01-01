@@ -1,0 +1,45 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: ironwill-core
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/iron_will}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_MB:5}MB
+      max-request-size: ${MAX_UPLOAD_MB:5}MB
+
+gcp:
+  project-id: ${GCP_PROJECT:local-project}
+  storage:
+    bucket: ${GCS_BUCKET:iron-will-proofs}
+
+app:
+  agent:
+    base-url: ${AGENT_BASE_URL:http://localhost:8081}
+    internal-secret: ${AGENT_INTERNAL_SECRET:dev-secret}
+  security:
+    jwt-secret: ${JWT_SECRET:dev-jwt-secret}
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:8080
+
+logging:
+  level:
+    root: INFO
+    org.springframework.security: INFO
+
