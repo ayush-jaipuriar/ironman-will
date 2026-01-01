@@ -1,429 +1,278 @@
-# Iron Will Core: Comprehensive Study & Architecture Guide
+# Iron Will Core: The Comprehensive Developer's Handbook & Study Guide
+
+**Target Audience**: Mid-level Engineers learning Spring Boot & Enterprise Architecture.
+**Goal**: To provide an end-to-end, line-by-line understanding of the Iron Will Core backend.
+
+---
 
 ## Table of Contents
-1. [Introduction](#introduction)
-2. [Architecture Overview](#architecture-overview)
-3. [Project Structure & Technology Stack](#project-structure--technology-stack)
-4. [Configuration & Environment](#configuration--environment)
-5. [Security & Authentication Deep Dive](#security--authentication-deep-dive)
-6. [Data Domain & Persistence Layer](#data-domain--persistence-layer)
-7. [Core Business Logic & Services](#core-business-logic--services)
-8. [API Layer & Request Handling](#api-layer--request-handling)
-9. [External Integrations: AI Agent & Cloud Storage](#external-integrations-ai-agent--cloud-storage)
-10. [End-to-End Workflow Analysis](#end-to-end-workflow-analysis)
-11. [Conclusion](#conclusion)
+1.  [Chapter 1: Architectural Philosophy & The "Why"](#chapter-1-architectural-philosophy--the-why)
+2.  [Chapter 2: Project Autopsy (Structure & Dependencies)](#chapter-2-project-autopsy-structure--dependencies)
+3.  [Chapter 3: Spring Boot Mechanics (Configuration & DI)](#chapter-3-spring-boot-mechanics-configuration--di)
+4.  [Chapter 4: The Database Layer (JPA & Entities)](#chapter-4-the-database-layer-jpa--entities)
+5.  [Chapter 5: The Security Layer (OAuth2 & JWT)](#chapter-5-the-security-layer-oauth2--jwt)
+6.  [Chapter 6: Core Business Logic (Services)](#chapter-6-core-business-logic-services)
+7.  [Chapter 7: The API Layer (Controllers)](#chapter-7-the-api-layer-controllers)
+8.  [Chapter 8: External Integrations (AI Agent & Storage)](#chapter-8-external-integrations-ai-agent--storage)
+9.  [Chapter 9: The Scheduler & Background Tasks](#chapter-9-the-scheduler--background-tasks)
+10. [Chapter 10: Testing Strategy](#chapter-10-testing-strategy)
 
 ---
 
-## 1. Introduction
+## Chapter 1: Architectural Philosophy & The "Why"
 
-Welcome to the **Iron Will Core Study Guide**. This document is designed for mid-level software engineers who wish to understand the inner workings of the "Iron Will" application backend. Whether you are onboarding to the team, auditing the system, or simply using this project as a learning resource for Spring Boot and Enterprise Java architecture, this guide will provide an exhaustive walkthrough.
+Before we look at code, we must understand the engineering constraints and decisions that shaped this system.
 
-"Iron Will" is an accountability and habit-tracking platform designed to help users achieve their goals through "social pressure" and gamification. The system allows users to define goals, submit daily proofs (images), and have those proofs verified by an AI Agent. The core backend handles user management, goal tracking, scoring (accountability score), and orchestrates the verification process.
+### 1.1 The Monolithic Choice
+In an era of microservices, we chose a Monolith. **Why?**
+*   **Transactional Integrity**: The most critical operation in Iron Will is "Audit Proof -> Update Score". If the audit is recorded but the score update fails, the user loses trust. In a monolith, we wrap this in a single `@Transactional` block. If any part fails, the database rolls back everything. In microservices, this would require complex distributed transactions (Sagas).
+*   **Operational Simplicity**: We deploy one container. We monitor one process. For a team of <10 engineers, the overhead of managing 15 microservices (service mesh, discovery, distributed tracing) is a productivity killer.
 
-This guide goes beyond simple code comments. It explains the *architectural decisions*, the *business rules* embedded in the code, and the *technologies* that power the platform. We will dissect the application layer by layer, starting from the configuration and security, moving down to the database entities, and then building up to the business services and API endpoints.
+### 1.2 State Management & The "Score"
+The `accountabilityScore` is the heart of the system.
+*   **Design Choice**: We use `BigDecimal` with a scale of 2 (e.g., `5.00`).
+*   **Why?**: Floating point math (IEEE 754) is imprecise. `0.1 + 0.2` in Java double is `0.30000000000000004`. If a user is at `3.00` and loses `0.1`, a float might drop them to `2.999999`, triggering a lockout incorrectly. `BigDecimal` avoids this class of bug entirely.
+
+### 1.3 Security Posture
+*   **Statelessness**: We use JWTs (JSON Web Tokens). The server remembers nothing about the user's session.
+*   **Why?**: This allows us to scale horizontally. If we add 10 more servers, any server can validate the token using the secret key. We don't need a central Redis session store.
 
 ---
 
-## 2. Architecture Overview
+## Chapter 2: Project Autopsy (Structure & Dependencies)
 
-The Iron Will Core is built as a monolithic **Spring Boot** application. While "monolith" often carries a negative connotation in the age of microservices, for a core domain system like this, it provides simplicity, transactional integrity, and ease of deployment.
+Let's dissect the project skeleton.
 
-### 2.1 High-Level Diagram
+### 2.1 The Build File (`pom.xml` / `build.gradle.kts`)
+The dependencies tell the story of the capabilities.
 
-```mermaid
-graph TD
-    Client[Web/Mobile Client] -->|HTTPS/JSON| LB[Load Balancer]
-    LB --> Core[Iron Will Core Service]
+*   `spring-boot-starter-web`:
+    *   **What it does**: Brings in Tomcat (embedded web server), Spring MVC (REST framework), and Jackson (JSON parser).
+    *   **Why**: We are building a REST API.
+*   `spring-boot-starter-data-jpa`:
+    *   **What it does**: Hibernate (ORM) + Spring Data (Repository abstraction).
+    *   **Why**: To interact with PostgreSQL using Java Objects (Entities) instead of raw SQL strings.
+*   `spring-boot-starter-oauth2-client`:
+    *   **What it does**: Handles the complex "Dance" of OAuth2 (Redirect to Google -> Get Code -> Exchange for Token -> Get User Info).
+    *   **Why**: We don't want to handle passwords.
+*   `spring-cloud-gcp-starter-storage`:
+    *   **What it does**: Provides an idiomatic Java client for Google Cloud Storage.
+    *   **Why**: We need to store user uploads (images) reliably.
 
-    subgraph "Iron Will Core"
-        Auth[Security & Auth Layer]
-        API[REST Controllers]
-        Service[Business Logic Layer]
-        Repo[Data Access Layer]
-    end
+### 2.2 Package Structure (`com.ironwill.core`)
+The code is organized by **Layer** (technical responsibility), not by **Feature**.
 
-    Core -->|SQL| DB[(PostgreSQL)]
-    Core -->|Uploads| GCS[Google Cloud Storage]
-    Core -->|HTTP/REST| Agent[AI Agent Service]
+*   `api/`: The "Front Door". Contains Controllers. Validates inputs, returns JSON.
+*   `service/`: The "Brain". Contains Business Logic. Doesn't know about HTTP or JSON.
+*   `repository/`: The "Library". interfaces for database access.
+*   `model/`: The "Vocabulary". JPA Entities representing Database Tables.
+*   `security/`: The "Bouncer". Auth filters and configurations.
+*   `config/`: The "wiring". Spring Bean definitions.
 
-    Client -->|OAuth2| Google[Google Identity]
+---
+
+## Chapter 3: Spring Boot Mechanics (Configuration & DI)
+
+Spring Boot is an "Inversion of Control" (IoC) container. You don't create objects (`new Service()`); Spring creates them for you.
+
+### 3.1 The Entry Point: `CoreApplication.java`
+Annotated with `@SpringBootApplication`. This does three things:
+1.  `@Configuration`: Marks it as a source of bean definitions.
+2.  `@EnableAutoConfiguration`: Tells Spring to guess configuration based on your jar dependencies (e.g., "I see Postgres driver, I'll configure a DataSource").
+3.  `@ComponentScan`: Tells Spring to scan the `com.ironwill.core` package for other components.
+
+### 3.2 Configuration Classes (`config/`)
+
+#### `CorsConfig.java`
+**The Problem**: Browsers block AJAX requests from one domain (e.g., `localhost:3000`) to another (`localhost:8080`) by default.
+**The Solution**: We define a `WebMvcConfigurer` bean.
+**The Code**:
+```java
+registry.addMapping("/**") // Apply to all endpoints
+        .allowedOrigins(allowedOrigins) // Only allow trusted domains (from env vars)
+        .allowedMethods("GET", "POST", ...);
 ```
-
-### 2.2 Key Components
-
-1.  **Core Service (This Repo)**: Acts as the "System of Record". It manages:
-    *   **Users**: Profiles, authentication state, and accountability scores.
-    *   **Goals**: Definitions of what a user wants to achieve, including frequency and criteria.
-    *   **Audits**: The daily record of proof submissions and their results.
-    *   **Orchestration**: It coordinates with the AI Agent to verify proofs.
-
-2.  **PostgreSQL (Database)**: The relational database storing all persistent data. We use relational tables for structured data (Users, Goals) and JSONB columns for flexible data (Goal Criteria).
-
-3.  **Google Cloud Storage (GCS)**: Used as an object store for proof images (photos uploaded by users).
-
-4.  **AI Agent Service**: An external service (likely Python/FastAPI) that performs the computer vision and reasoning tasks to verify if a submitted photo meets the goal criteria.
-
-### 2.3 Design Patterns Used
-
-*   **Layered Architecture**: Controller -> Service -> Repository. This standard Spring pattern separates concerns:
-    *   *Controllers* handle HTTP concerns (request parsing, response formatting).
-    *   *Services* contain business logic (transactions, rules, scoring).
-    *   *Repositories* handle data access abstraction.
-*   **Inversion of Control (IoC)**: Spring's dependency injection is used throughout to manage component lifecycles and testing.
-*   **Strategy Pattern**: (Implicitly used in Authentication handlers).
-*   **Scheduled Tasks**: Background jobs (Cron) for proactive system actions (Nagging).
-
----
-
-## 3. Project Structure & Technology Stack
-
-### 3.1 Technology Stack
-
-*   **Language**: Java 17 (LTS). Leverages records, text blocks, and modern stream APIs.
-*   **Framework**: Spring Boot 3.2.5. The latest generation of Spring, supporting Jakarta EE 9/10 APIs.
-*   **Build Tool**: Gradle (Kotlin DSL). A flexible and concise build configuration.
-*   **Database**: PostgreSQL with `spring-boot-starter-data-jpa` (Hibernate) for ORM.
-*   **Security**: Spring Security 6 with OAuth2 Client (Google Login) and JWT (JSON Web Tokens) for stateless session management.
-*   **Utility**: Lombok (reduces boilerplate code like getters/setters/constructors).
-
-### 3.2 Directory Structure
-
-The codebase follows the standard Maven/Gradle directory layout:
-
-```text
-apps/core/
-├── build.gradle.kts       # Build configuration and dependencies
-├── src/main/java/com/ironwill/core/
-│   ├── CoreApplication.java    # Main entry point (Bootstrapper)
-│   ├── api/                    # REST Controllers (Web Layer)
-│   │   ├── dto/                # Data Transfer Objects (Request/Response bodies)
-│   ├── client/                 # External Clients (e.g., AgentClient)
-│   ├── config/                 # Spring Configuration (CORS, Swagger, etc.)
-│   ├── model/                  # JPA Entities (Database Tables)
-│   ├── repository/             # Data Access Interfaces (Spring Data JPA)
-│   ├── security/               # Auth logic (JWT, OAuth2 handlers)
-│   └── service/                # Business Logic (The "Brain" of the app)
-```
-
-### 3.3 Dependency Analysis
-
-Let's look at the `pom.xml` (or `build.gradle.kts` equivalent logic) to understand the capabilities:
-
-*   `spring-boot-starter-web`: Includes Tomcat (embedded server) and Spring MVC.
-*   `spring-boot-starter-security`: Provides the security framework.
-*   `spring-boot-starter-oauth2-client`: Enables "Login with Google".
-*   `spring-boot-starter-data-jpa`: Provides the repository abstraction over Hibernate.
-*   `spring-cloud-gcp-starter-storage`: Google Cloud libraries for GCS integration.
-*   `springdoc-openapi-starter-webmvc-ui`: Auto-generates Swagger/OpenAPI documentation.
-
----
-
-## 4. Configuration & Environment
-
-Configuration in Spring Boot allows the application to adapt to different environments (Local, Dev, Prod) without code changes.
-
-### 4.1 Application Properties
-
-The application relies on environment variables for sensitive or environment-specific data. This is a 12-Factor App best practice.
-
-Key variables (found in `.env.example`):
-*   `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`: Database connection details.
-*   `GCS_BUCKET`: The name of the Google Cloud Storage bucket.
-*   `AGENT_BASE_URL`: The URL of the external AI Agent service.
-*   `AGENT_INTERNAL_SECRET`: A shared secret key to authenticate *this* core service when it calls the Agent.
-*   `JWT_SECRET`: The secret key used to sign and verify JSON Web Tokens.
-*   `OAUTH_GOOGLE_CLIENT_ID` / `SECRET`: Credentials for Google OAuth2.
-
-### 4.2 CORS Configuration (`CorsConfig.java`)
-
-Cross-Origin Resource Sharing (CORS) is critical for allowing a frontend (running on a different domain, e.g., `localhost:3000` or `ironwill.app`) to call this backend.
-
-The `CorsConfig` class defines a global policy:
-*   It reads `app.cors.allowed-origins` from properties.
-*   It allows standard HTTP methods (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`).
-*   It sets `allowCredentials(true)`, which is necessary if we were using cookies (though we use headers mostly).
-
-This configuration ensures that browsers don't block requests from our legitimate frontend application.
-
----
-
-## 5. Security & Authentication Deep Dive
-
-Security is the most complex part of the configuration. Iron Will uses a **Stateless** security model with **JWTs**, but bootstraps the user identity via **OAuth2 (Google)**.
-
-### 5.1 The Authentication Flow
-
-1.  **Frontend**: Redirects user to `/oauth2/authorization/google`.
-2.  **User**: Logs in with Google.
-3.  **Google**: Redirects back to the Core app.
-4.  **Core (`OAuth2LoginSuccessHandler`)**:
-    *   Intercepts the successful login.
-    *   Extracts the email from the Google profile.
-    *   Checks if the user exists in the DB.
-    *   Generates a custom **JWT** (access token) representing the user's session in *our* system.
-    *   Returns this JWT to the client (in JSON format).
-5.  **Frontend (Subsequent Requests)**:
-    *   Stores the JWT (e.g., in localStorage).
-    *   Sends `Authorization: Bearer <token>` in the header for every API call.
-6.  **Core (`JwtAuthenticationFilter`)**:
-    *   Intercepts every request.
-    *   Validates the token signature and expiration.
-    *   Sets the `SecurityContext` if valid.
-
-### 5.2 Key Classes
+**Why**: Security. We don't want random malicious sites calling our API with the user's cookies (if we used them).
 
 #### `SecurityConfig.java`
-This is the "brain" of the security setup. It defines the `SecurityFilterChain`:
-*   **CSRF Disabled**: Since we use stateless JWTs, Cross-Site Request Forgery protection (which relies on session cookies) is unnecessary and disabled to simplify the API.
-*   **Session Policy**: `SessionCreationPolicy.STATELESS`. The server does *not* keep an HTTP session in memory. Every request must carry its own proof of identity (the JWT).
-*   **Endpoint Rules**:
-    *   `/auth/**`, `/oauth2/**`, `/health`, `/swagger-ui/**`: **PermitAll** (Public).
-    *   `anyRequest()`: **Authenticated** (Locked).
-*   **OAuth2 Setup**: Configures the `userInfoEndpoint` with our custom service and the `successHandler`.
-*   **Filter Order**: Adds `JwtAuthenticationFilter` *before* the standard `UsernamePasswordAuthenticationFilter`.
-
-#### `CustomOAuth2UserService.java`
-This service extends the default Spring OAuth2 behavior.
-*   **Purpose**: To perform "Just-In-Time" (JIT) provisioning.
-*   **Logic**: When a user logs in with Google:
-    1.  It loads the user info from Google.
-    2.  It looks up the user by email in the `users` table.
-    3.  **If not found**: It creates a new `User` entity, assigns the `ROLE_USER`, sets a default accountability score (5.0), and saves it.
-    4.  **If found**: It updates the user (if needed) and proceeds.
-*   **Result**: It returns an `OAuth2User` object that contains the user's authorities (Roles).
-
-#### `OAuth2LoginSuccessHandler.java`
-This handler runs *after* Google confirms identity and `CustomOAuth2UserService` has loaded/created the user.
-*   **Logic**:
-    1.  Retrieves the email from the authentication principal.
-    2.  Loads the full `User` entity from the DB.
-    3.  Calls `JwtService` to mint a new token containing claims (like roles).
-    4.  Writes the token as a JSON response: `{"token": "..."}`.
-*   **Note**: In a production web app, this might redirect to a frontend URL with the token as a query param, but returning JSON works for this API-centric design.
-
-#### `JwtService.java`
-Encapsulates all JWT operations.
-*   **Signing**: Uses `HMAC-SHA256`. The secret key must be strong and kept safe.
-*   **Generation**: Sets `Subject` (email), `IssuedAt`, `Expiration` (default 10 hours), and custom claims.
-*   **Extraction**: Parses the token string to retrieve the user email (subject) for authentication.
-
-#### `JwtAuthenticationFilter.java`
-The gatekeeper for API requests.
-*   **Logic**:
-    1.  Looks for the `Authorization` header.
-    2.  Parsing: Removes "Bearer " prefix.
-    3.  Validation: Calls `JwtService.extractSubject()`.
-    4.  User Loading: Calls `UserDetailsServiceImpl` to get the full user object.
-    5.  Authentication: Creates a `UsernamePasswordAuthenticationToken` and places it in the `SecurityContextHolder`.
-*   If this filter fails (invalid token), the request proceeds as anonymous, and `SecurityConfig` will likely deny it (403 Forbidden).
+**The Problem**: Who is allowed to access what?
+**The Solution**: The `SecurityFilterChain` bean.
+**Key Decisions**:
+*   `csrf.disable()`: CSRF attacks rely on browser cookies sending session IDs automatically. Since we use JWT headers (`Authorization: Bearer`), the browser doesn't send credentials automatically, so CSRF is irrelevant. Disabling it simplifies the API.
+*   `sessionCreationPolicy(STATELESS)`: Tells Spring Security "Do not create a JSESSIONID cookie".
 
 ---
 
-## 6. Data Domain & Persistence Layer
+## Chapter 4: The Database Layer (JPA & Entities)
 
-The data layer uses **JPA (Java Persistence API)** with Hibernate as the implementation. This allows us to map Java objects (Entities) directly to database tables.
+We use **JPA (Java Persistence API)** to map Java classes to PostgreSQL tables.
 
-### 6.1 Entity Relationship Diagram (Conceptual)
+### 4.1 The `User` Entity
+```java
+@Entity
+@Table(name = "users")
+public class User {
+    @Id @GeneratedValue private UUID id;
 
-*   **User** (1) <---> (*) **Goal**
-*   **User** (1) <---> (*) **Notification**
-*   **Goal** (1) <---> (*) **AuditLog**
-*   **User** (*) <---> (*) **Role**
+    @Column(nullable = false, precision = 4, scale = 2)
+    private BigDecimal accountabilityScore = BigDecimal.valueOf(5.00);
+}
+```
+**Analysis**:
+*   `@Id @GeneratedValue`: We rely on Hibernate to generate the UUID.
+*   `precision = 4, scale = 2`: Maps to SQL `NUMERIC(4,2)`. This allows numbers up to `99.99`. This is a business constraint; scores shouldn't exceed this.
 
-### 6.2 Key Entities
+### 4.2 The `Goal` Entity & JSONB
+```java
+@Column(columnDefinition = "jsonb", nullable = false)
+private JsonNode criteriaConfig;
+```
+**The Why**: This is a hybrid SQL/NoSQL approach.
+*   **The Conflict**: We have strict relationships (User -> Goal), but flexible attributes (different goals have different rules).
+*   **The Resolution**: We use Postgres `JSONB`. It allows us to store unstructured data for the goal logic (e.g., `{"pages": 10}` vs `{"duration": "30m"}`) while keeping the strict `user_id` foreign key relationship.
 
-#### `User.java`
-Represents a registered user.
-*   `id` (UUID): Primary key.
-*   `email` (String): Unique identifier.
-*   `accountabilityScore` (BigDecimal): **The most critical field.** Starts at 5.00.
-    *   **Logic**: This score determines if the user is "locked out". It's a high-precision decimal to allow fine-grained adjustments (+0.5, -0.2).
-*   `timezone` (String): Vital for calculating "end of day" logic for audits.
-*   `roles` (Set<Role>): Many-to-Many relationship (User can be ADMIN and USER).
-
-#### `Goal.java`
-Represents a user's commitment.
-*   `reviewTime` (LocalTime): The daily deadline or check-in time.
-*   `frequencyType` (Enum): `DAILY` or `WEEKDAYS`. Defines *when* the goal is active.
-*   `criteriaConfig` (JsonNode): **Flexible Schema**. Instead of hardcoding columns like "min_pages" or "calories", we store a JSON object. This allows the Frontend and Agent to agree on arbitrary validation rules without changing the DB schema.
-*   `status` (Enum): `ACTIVE`, `LOCKED`, `ARCHIVED`. If `LOCKED`, the user cannot submit proofs.
-*   `lockedUntil` (OffsetDateTime): If the user's score drops too low, their goals get locked until this timestamp.
-
-#### `AuditLog.java`
-The record of a specific day's attempt at a goal.
-*   `goal` (ManyToOne): The parent goal.
-*   `auditDate` (LocalDate): The specific date being audited.
-*   `UniqueConstraint`: `uq_goal_date` ensures a user can only have *one* audit log per goal per day. This prevents duplicate submissions.
-*   `proofUrl` (String): The GCS path (e.g., `gs://bucket/...`) to the image.
-*   `status` (Enum): `PENDING` -> `VERIFIED` | `REJECTED` | `MISSED`.
-*   `scoreImpact` (BigDecimal): Records exactly how much the score changed due to this audit (+0.5, -0.2, etc.).
-
-#### `Notification.java`
-Simple alert system.
-*   `user`: Who receives it.
-*   `message`: The text.
-*   `read`: Boolean flag.
-*   Used by the **NagScheduler** to remind users to submit proofs.
-
-### 6.3 Repositories
-
-Located in `repository/` package. They extend `JpaRepository<Entity, UUID>`.
-*   `GoalRepository`: Includes custom finders like `findByUserAndStatus(User u, GoalStatus s)`.
-*   `AuditLogRepository`: Key method `findByGoalAndAuditDate(Goal g, LocalDate d)` used to check if a user has already submitted for today.
-*   `UserRepository`: Finds users by email for authentication.
+### 4.3 `AuditLog` & Unique Constraints
+```java
+@Table(uniqueConstraints = {
+    @UniqueConstraint(name = "uq_goal_date", columnNames = {"goal_id", "audit_date"})
+})
+```
+**The Why**: **Concurrency Control**.
+*   **Scenario**: A user clicks "Submit" twice rapidly. Two requests hit the server.
+*   **Defense**: The Database is the final source of truth. The second insert will fail with a `DataIntegrityViolationException`. We catch this and tell the user "Already submitted". This is much more robust than checking `if (exists)` in Java code, which has race conditions.
 
 ---
 
-## 7. Core Business Logic & Services
+## Chapter 5: The Security Layer (OAuth2 & JWT)
 
-This layer implements the functional requirements of Iron Will. It resides in the `service/` package.
+This is the most complex part of the system. Let's trace the flow.
 
-### 7.1 `ScoreService.java`: The Gamification Engine
+### 5.1 Step 1: Login (`CustomOAuth2UserService`)
+This class extends Spring's default behavior.
+**The Logic**:
+1.  User logs in with Google.
+2.  Google returns a profile (email, name).
+3.  We check our DB: `userRepository.findByEmail(email)`.
+4.  **If New**: Create a `User`, set Score to 5.0, Role to USER. Save.
+5.  **If Existing**: Return the user.
+**The Why**: This is "Just-In-Time" (JIT) provisioning. We don't have a separate "Sign Up" page. Access implies registration.
 
-This service manages the user's "Accountability Score". It is the arbiter of punishment and reward.
+### 5.2 Step 2: Token Minting (`OAuth2LoginSuccessHandler`)
+Once the user is authenticated via Google:
+1.  We grab their email.
+2.  We use `JwtService` to sign a token using `HMAC-SHA256`.
+3.  We explicitly embed their Roles (`ROLE_USER`) into the token claims.
+4.  We return the token as JSON.
 
-*   **Constants**:
-    *   `PASS_DELTA = +0.5`: Reward for a verified goal.
-    *   `FAIL_DELTA = -0.2`: Penalty for a rejected proof (lazy attempt).
-    *   `MISSED_DELTA = -1.0`: Severe penalty for missing the deadline entirely.
-    *   `LOCK_THRESHOLD = 3.0`: The "Fail State".
-
-*   **Logic (`applyDelta`)**:
-    1.  Adds the delta to the user's current score.
-    2.  Saves the user.
-    3.  **Lockout Check**: If the new score is `< 3.0`:
-        *   Triggers `lockAllActiveGoals(user)`.
-        *   Sets all `ACTIVE` goals to `LOCKED` status.
-        *   Sets `lockedUntil` to 24 hours from now.
-        *   This effectively "bans" the user from the app's utility for a day, enforcing the consequence of failure.
-
-### 7.2 `GoalService.java`: CRUD & Management
-
-Handles the lifecycle of a Goal.
-*   **Creation**: Links the goal to the logged-in user.
-*   **Updates**: Allows changing title, timing, or criteria.
-*   **Listing**: Filters by status (Active vs Archived).
-
-### 7.3 `StorageService.java`: Image Handling
-
-Abstracts the complexity of Google Cloud Storage.
-*   **Hashing**: It generates a SHA-256 hash of the uploaded file content.
-*   **Naming Strategy**: `users/{userId}/goals/{goalId}/{date}_{hash}`.
-    *   This structure organizes files logically.
-    *   The hash ensures filename uniqueness and prevents collisions if the user retries.
-*   **Upload**: streams the bytes to GCS and returns the `gs://` URI.
-
-### 7.4 `NagScheduler.java`: The Accountability Assistant
-
-This component proactively engages the user. It uses Spring's `@Scheduled` annotation to run a background job.
-
-*   **Schedule**: Runs every 15 minutes (`cron = "0 0/15 * * * *"`).
-*   **Logic**:
-    1.  Iterates through *all* users (Note: In a massive scale app, this would be batched/paginated, but works for MVP).
-    2.  **Timezone Awareness**: Converts `now()` to the user's local time.
-    3.  **Quiet Hours**: Skips processing if it's night time (23:00 - 06:00) for the user.
-    4.  **Check Goals**: For each active goal:
-        *   Is the current time *after* the goal's `reviewTime`?
-        *   Is there *no* `AuditLog` for `today`?
-    5.  **Action**: If yes, calls `NotificationService` to create a "Pending audit" alert.
-*   **Purpose**: Reminds users *before* they miss the day and lose 1.0 point.
+### 5.3 Step 3: Authorization (`JwtAuthenticationFilter`)
+This filter runs on *every* request.
+1.  **Extract**: Checks `Authorization` header for `Bearer <token>`.
+2.  **Verify**: Uses `JwtService` to check the signature (ensuring no one tampered with it).
+3.  **Authenticate**: Loads the user details and puts them in the `SecurityContext`.
+**The Why**: This decouples authentication (Login) from authorization (Access). The API doesn't care *how* you got the token, only that it is valid.
 
 ---
 
-## 8. API Layer & Request Handling
+## Chapter 6: Core Business Logic (Services)
 
-The Controllers (`api/` package) expose the business logic via HTTP REST endpoints. They handle JSON serialization/deserialization and HTTP status codes.
+This is where the "Iron Will" rules live.
 
-### 8.1 `AuditController.java`: The Core Interaction
+### 6.1 `ScoreService`: The Gamification Engine
+This service is the only place allowed to modify scores.
+**Key Logic**:
+```java
+public void applyDelta(User user, BigDecimal delta) {
+    user.setAccountabilityScore(current.add(delta));
+    if (user.getAccountabilityScore() < 3.0) {
+        lockAllActiveGoals(user);
+    }
+}
+```
+**The Why**:
+*   **Centralization**: By forcing all updates through here, we ensure we *never* forget to check for Lockout.
+*   **The Lockout**: This is the "stick". If you fail too much, the app becomes read-only (LOCKED status) for 24 hours. This enforces the psychological contract.
 
-This is the most complex and important controller. It handles the "Submit Proof" workflow.
+### 6.2 `GoalService`: CRUD
+Standard Create/Read/Update/Delete operations.
+**Transactional Boundaries**: Methods are annotated with `@Transactional`. This ensures that if we create a Goal but fail to link it to a User, the database rolls back. No "zombie" data.
 
-**Endpoint**: `POST /api/goals/{id}/audit`
-
-**Flow**:
-1.  **Validation**:
-    *   Checks if the goal belongs to the user.
-    *   Checks if the goal is `ACTIVE`.
-    *   **Lockout Check**: Explicitly checks if `score < 3.0` and returns `423 Locked` if true. This prevents users from bypassing the penalty.
-    *   **File Validation**: Checks file size (<5MB) and type (JPEG/PNG).
-2.  **Upload**: Calls `StorageService` to persist the image.
-3.  **Verification (The "Iron Will" Magic)**:
-    *   Constructs an `AgentRequest` object.
-    *   Includes: Goal Context (Title, Criteria JSON), Proof URL, Timezone.
-    *   Calls `AgentClient.audit()`.
-4.  **Result Processing**:
-    *   **PASS**: Status `VERIFIED`, Score `+0.5`.
-    *   **FAIL**: Status `REJECTED`, Score `-0.2`.
-    *   **ERROR**: If the Agent is down/errors, Status remains `PENDING`, Score `0.0`. Remarks set to "Agent unavailable".
-5.  **Persistence**:
-    *   Creates and saves the `AuditLog` entry.
-    *   Calls `ScoreService` to update the user's score immediately.
-6.  **Response**: Returns the verdict and any specific feedback from the AI (e.g., "The image is too blurry" or "No book detected").
-
-### 8.2 Other Controllers
-
-*   **`AuthController`**: Likely handles endpoints for debugging or specific auth flows (though much is handled by filter/config).
-*   **`GoalController`**: Standard REST (`GET /`, `POST /`, `PUT /{id}`).
-*   **`UserController`**: Endpoint to update timezone (`PUT /timezone`).
-*   **`NotificationController`**: `GET /unread` to allow the frontend to poll for new nags.
+### 6.3 `StorageService`: Handling Files
+We don't store images in the DB (BLOBs are bad for DB performance). We store them in Google Cloud Storage (GCS).
+**Filename Strategy**: `users/{userId}/goals/{goalId}/{date}_{hash}`.
+*   **Privacy**: Organized by user ID for easy data deletion.
+*   **Uniqueness**: The `hash` (SHA-256 of content) ensures that if a user uploads the same image twice, it overwrites cleanly rather than creating duplicates.
 
 ---
 
-## 9. External Integrations: AI Agent & Cloud Storage
+## Chapter 7: The API Layer (Controllers)
 
-### 9.1 The Agent Client (`AgentClient.java`)
+Controllers translate HTTP to Java.
 
-This component acts as the bridge to the AI brain. It uses **Spring WebClient** (part of the reactive stack, but used synchronously here via `.block()`).
+### 7.1 `AuditController`
+The most critical endpoint: `POST /api/goals/{id}/audit`.
+**The Workflow**:
+1.  **Input Validation**: Is the file an image? Is it < 5MB?
+2.  **State Check**: Is the user currently Locked Out? (If so, reject immediately with 423 Locked).
+3.  **Upload**: Call `StorageService` to put file in GCS.
+4.  **Verification**: Call `AgentClient` (The AI).
+5.  **Score Update**: Based on AI verdict (PASS/FAIL), call `ScoreService`.
+6.  **Response**: Return the result to the user.
 
-*   **Authentication**: Uses a shared secret header `X-Internal-Secret`. This ensures that only the Core service can trigger the Agent's judgment logic.
-*   **Resilience**:
-    *   **Timeout**: 30 seconds. AI processing (vision models) can be slow, but we don't want to hang forever.
-    *   **Error Handling (`onErrorResume`)**: If the Agent fails (500 error or timeout), the client returns `Mono.empty()`.
-    *   **Design Choice**: We favor *availability*. If the AI is down, we accept the upload as `PENDING` rather than failing the user's request. A human admin (or a retry job) could verify it later.
-
-### 9.2 Request/Response Contract
-
-*   **Request**: Sends "Goal Criteria" (what to look for) and "Proof URL" (where the image is).
-*   **Response**: Receives "Verdict" (PASS/FAIL), "Confidence", and "Remarks". This decoupling allows the Agent to evolve its logic (e.g., upgrading from GPT-4o to a specialized Vision model) without changing the Core code.
-
----
-
-## 10. End-to-End Workflow Analysis
-
-Let's trace the life of a user action to solidify our understanding.
-
-### Scenario: Alice submits her "Morning Run" proof.
-
-1.  **Pre-requisite**: Alice has a Goal "Morning Run", Criteria: `{"min_duration": "30m", "type": "fitness_app_screenshot"}`.
-2.  **Action**: Alice uploads a screenshot of Strava via the Mobile App.
-3.  **Network**: `POST /api/goals/{uuid}/audit` reaches the Load Balancer -> Core.
-4.  **Security**: `JwtAuthenticationFilter` validates Alice's token. Security Context is set.
-5.  **Controller**:
-    *   `AuditController` receives the request.
-    *   Validates Alice isn't locked out (Score > 3.0).
-6.  **Storage**: `StorageService` uploads the screenshot to `gs://iron-will-bucket/users/alice/goals/run/date_hash.jpg`.
-7.  **Agent Call**:
-    *   Core sends JSON to Agent: `{"criteria": {"min_duration": "30m"}, "proof_url": "gs://..."}`.
-    *   Agent downloads image, runs OCR/Vision.
-    *   Agent sees "25m" on the screenshot.
-    *   Agent returns: `{"verdict": "FAIL", "remarks": "Duration 25m is less than required 30m"}`.
-8.  **Processing**:
-    *   Controller sees `FAIL`.
-    *   Calls `ScoreService.applyFail(alice)`.
-    *   Alice's score drops from 5.0 to 4.8.
-9.  **Persistence**: `AuditLog` saved with status `REJECTED`.
-10. **Response**: JSON returned to Alice: `{"status": "FAIL", "remarks": "Duration 25m..."}`.
-11. **UI**: Alice sees a red "Rejected" screen and her score decrease.
+**Design Note**: We return specific HTTP codes.
+*   `200 OK`: Success.
+*   `423 Locked`: Business logic rejection.
+*   `400 Bad Request`: Validation failure.
 
 ---
 
-## 11. Conclusion
+## Chapter 8: External Integrations (AI Agent & Storage)
 
-The Iron Will Core is a robust implementation of a gamified accountability system. It demonstrates several key architectural strengths:
-*   **Security-First**: Stateless JWT auth and rigorous validation of user ownership.
-*   **Separation of Concerns**: Clear boundaries between HTTP, Business, and Data layers.
-*   **Resilience**: Graceful handling of external service failures.
-*   **Extensibility**: JSONB criteria allows adding new goal types without schema migrations.
+### 8.1 The Agent Client (`AgentClient.java`)
+We communicate with a separate Python/FastAPI service that runs the Computer Vision models.
+**Communication Style**: Synchronous HTTP (`WebClient`).
+**The Why**:
+*   **Simplicity**: Using a Message Queue (RabbitMQ) is "better" for scale but adds massive infrastructure complexity. For MVP, a simple HTTP call is easier to debug.
+*   **Timeout**: We set a hard 30-second timeout. If the AI hangs, we don't want to hang the User's connection forever.
+*   **Fail-Open**: If the Agent fails (500 Error), we catch the exception and mark the audit as `PENDING`. We do *not* fail the user. This is a "Resiliency Pattern".
 
-For a developer working on this codebase, the critical path is the **AuditController -> AgentClient -> ScoreService** loop. This is where the unique value of the application lives. Understanding how the score impacts the user state (Lockout) is also essential for implementing any future features related to user progression or tiers.
+### 8.2 Security
+We send a header `X-Internal-Secret`.
+**The Why**: This is a shared secret between Core and Agent. It prevents random internet users from calling the Agent API directly.
+
+---
+
+## Chapter 9: The Scheduler & Background Tasks
+
+### 9.1 `NagScheduler`
+**Problem**: Users forget to submit proofs.
+**Solution**: A cron job running every 15 minutes.
+**The Logic**:
+1.  Find all users.
+2.  Calculate their *local* time (using `user.timezone`).
+3.  If it is after their `reviewTime` AND they haven't submitted a proof today:
+    *   Send a Notification.
+**Optimization**: We check "Quiet Hours" (23:00 - 06:00). We don't spam users while they sleep. This is "Empathic Engineering".
+
+---
+
+## Chapter 10: Testing Strategy
+
+How do we know it works?
+
+### 10.1 Unit Tests
+We use `Mockito` to test `ScoreService`.
+*   *Test*: "If score drops below 3.0, verify `goalRepository.saveAll()` is called with LOCKED status."
+*   *Why*: We test the logic in isolation from the database.
+
+### 10.2 Integration Tests
+We use `@SpringBootTest` with H2 (in-memory DB).
+*   *Test*: "Create User -> Create Goal -> Submit Audit".
+*   *Why*: Ensures the wiring between Controller, Service, and Repository works.
+
+### 10.3 Mocking the External World
+We never call the real AI Agent in tests. We mock `AgentClient` to return `AgentResponse(verdict="PASS")`.
+**Why**: Tests must be deterministic and fast. Real network calls are flaky and slow.
+
+---
+
+**End of Guide**. You now possess the knowledge of the Architect. Go forth and code.
