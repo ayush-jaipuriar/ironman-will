@@ -10,7 +10,7 @@
 2.  [Chapter 2: Project Autopsy (Structure & Dependencies)](#chapter-2-project-autopsy-structure--dependencies)
 3.  [Chapter 3: Spring Boot Mechanics (Configuration & DI)](#chapter-3-spring-boot-mechanics-configuration--di)
 4.  [Chapter 4: The Database Layer (JPA & Entities)](#chapter-4-the-database-layer-jpa--entities)
-5.  [Chapter 5: The Security Layer (OAuth2 & JWT)](#chapter-5-the-security-layer-oauth2--jwt)
+5.  [Chapter 5: Security & Auth Deep Dive (Beginner Friendly)](#chapter-5-security--auth-deep-dive-beginner-friendly)
 6.  [Chapter 6: Core Business Logic (Services)](#chapter-6-core-business-logic-services)
 7.  [Chapter 7: The API Layer (Controllers)](#chapter-7-the-api-layer-controllers)
 8.  [Chapter 8: External Integrations (AI Agent & Storage)](#chapter-8-external-integrations-ai-agent--storage)
@@ -143,33 +143,79 @@ private JsonNode criteriaConfig;
 
 ---
 
-## Chapter 5: The Security Layer (OAuth2 & JWT)
+## Chapter 5: Security & Auth Deep Dive (Beginner Friendly)
 
-This is the most complex part of the system. Let's trace the flow.
+If you are new to backend engineering, Authentication (AuthN) and Authorization (AuthZ) can be confusing. Let's break it down using a **Nightclub Analogy**.
 
-### 5.1 Step 1: Login (`CustomOAuth2UserService`)
-This class extends Spring's default behavior.
-**The Logic**:
-1.  User logs in with Google.
-2.  Google returns a profile (email, name).
-3.  We check our DB: `userRepository.findByEmail(email)`.
-4.  **If New**: Create a `User`, set Score to 5.0, Role to USER. Save.
-5.  **If Existing**: Return the user.
-**The Why**: This is "Just-In-Time" (JIT) provisioning. We don't have a separate "Sign Up" page. Access implies registration.
+### 5.1 The Concept: The Club, The ID, and The Wristband
 
-### 5.2 Step 2: Token Minting (`OAuth2LoginSuccessHandler`)
-Once the user is authenticated via Google:
-1.  We grab their email.
-2.  We use `JwtService` to sign a token using `HMAC-SHA256`.
-3.  We explicitly embed their Roles (`ROLE_USER`) into the token claims.
-4.  We return the token as JSON.
+1.  **The Club**: The Iron Will Application. It has a public lobby (Login Page) and a VIP area (The Dashboard).
+2.  **The Bouncer**: Our `JwtAuthenticationFilter`. He stands at the door of the VIP area.
+3.  **Government ID**: Your Google Account. It proves who you are globally.
+4.  **The Wristband**: The **JWT (JSON Web Token)**. The club gives this to you after checking your ID. It works *only* at this specific club.
 
-### 5.3 Step 3: Authorization (`JwtAuthenticationFilter`)
-This filter runs on *every* request.
-1.  **Extract**: Checks `Authorization` header for `Bearer <token>`.
-2.  **Verify**: Uses `JwtService` to check the signature (ensuring no one tampered with it).
-3.  **Authenticate**: Loads the user details and puts them in the `SecurityContext`.
-**The Why**: This decouples authentication (Login) from authorization (Access). The API doesn't care *how* you got the token, only that it is valid.
+**The Workflow**:
+1.  You arrive at the club. You show your Government ID (Google Login).
+2.  The club checks if you are on the guest list (Database). If not, they write your name down (Registration).
+3.  The club gives you a **Wristband** (JWT).
+4.  For the rest of the night, you don't show your ID. You just flash your **Wristband** to the Bouncer to get drinks or enter rooms.
+
+### 5.2 Phase 1: Authentication (Getting the Wristband)
+
+This is the "Login with Google" part. It happens via **OAuth2**.
+
+**The Steps (End-to-End)**:
+
+1.  **User Action**: User clicks "Login with Google" on the Frontend.
+2.  **Redirect**: The browser is sent to `accounts.google.com`.
+    *   *Note*: Iron Will is not involved here. You are talking directly to Google.
+3.  **Consent**: User types their Gmail password and says "Yes, Iron Will can see my email".
+4.  **The Callback**: Google redirects the browser back to *our* server: `/login/oauth2/code/google`.
+    *   It brings a "Code" (like a temporary ticket).
+5.  **Exchange**: Spring Boot (behind the scenes) takes that Code, calls Google's server, and says "Is this valid?". Google replies "Yes, this is `alice@gmail.com`".
+
+**Code Spotlight: `CustomOAuth2UserService`**
+*   **Role**: The "Guest List Manager".
+*   **What it does**: It intercepts the moment Google says "This is Alice".
+*   **Logic**:
+    *   `findByEmail("alice@gmail.com")`
+    *   *If User Exists*: Great, let her in.
+    *   *If User Missing*: Create a new `User` row in the Postgres database. Set her score to 5.00.
+    *   *Return*: A generic `OAuth2User` object.
+
+**Code Spotlight: `OAuth2LoginSuccessHandler`**
+*   **Role**: The "Wristband Dispenser".
+*   **What it does**: It runs immediately after the Guest List Manager finishes.
+*   **Logic**:
+    1.  Get the email from the authentication data.
+    2.  **Mint the Token**: Call `JwtService.generate(email)`. This creates a long string (the JWT).
+    3.  **Respond**: Send the token back to the browser as JSON: `{"token": "eyJh..."}`.
+
+### 5.3 Phase 2: Authorization (Using the Wristband)
+
+Now the user has the token. They want to "Submit a Proof".
+
+**The Steps (End-to-End)**:
+
+1.  **User Action**: User uploads a photo.
+2.  **The Request**: The Frontend sends a `POST /api/goals/123/audit`.
+    *   **Crucial**: It adds a header: `Authorization: Bearer eyJh...` (This is the wristband).
+3.  **The Bouncer (`JwtAuthenticationFilter`)**:
+    *   This Code runs *before* the Controller.
+    *   **Step A**: Look for the Header. No header? Kick them out (403 Forbidden).
+    *   **Step B**: Check the signature. Is this *our* wristband? Or a fake one drawn with crayon? We verify it using our `JWT_SECRET`.
+    *   **Step C**: Read the name. "Oh, this is Alice."
+    *   **Step D**: Load Alice's details from the Database (`UserDetailsService`).
+    *   **Step E**: Stamp her hand (`SecurityContextHolder.setAuthentication(...)`).
+4.  **The Controller**:
+    *   Now the request reaches `AuditController`.
+    *   It doesn't check passwords. It just asks: `currentUserService.requireCurrentUser()`.
+    *   Since the Bouncer stamped her hand, we know it's Alice.
+
+### 5.4 Why do we do it this way? (The "Why")
+
+*   **Why swap Google ID for JWT?**: We don't want to call Google every time you click a button (slow, expensive). Our JWT is fast and local.
+*   **Why Stateless?**: Note that in Phase 2, the server didn't check a list of "Currently Logged In Users". It just checked the *mathematical signature* of the token. This means if Server A issues the token, Server B can validate it without talking to Server A. This is **Horizontal Scalability**.
 
 ---
 
