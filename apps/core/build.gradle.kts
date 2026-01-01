@@ -16,6 +16,7 @@ repositories {
 }
 
 extra["springdocVersion"] = "2.5.0"
+extra["jjwtVersion"] = "0.11.5"
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
@@ -30,6 +31,10 @@ dependencies {
     annotationProcessor("org.projectlombok:lombok")
 
     runtimeOnly("org.postgresql:postgresql")
+
+    implementation("io.jsonwebtoken:jjwt-api:${property("jjwtVersion")}")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:${property("jjwtVersion")}")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:${property("jjwtVersion")}")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
