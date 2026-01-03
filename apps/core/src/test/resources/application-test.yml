@@ -1,0 +1,65 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+  
+  h2:
+    console:
+      enabled: true
+  
+  cloud:
+    gcp:
+      storage:
+        enabled: false
+      project-id: test-project
+  
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-client-id
+            client-secret: test-client-secret
+            redirect-uri: http://localhost:8080/login/oauth2/code/google
+            scope:
+              - openid
+              - email
+              - profile
+
+jwt:
+  secret: test-jwt-secret-key-must-be-at-least-256-bits-long-for-hmac-sha256
+  expiration-ms: 3600000
+
+admin:
+  seed:
+    email: admin@test.com
+    password: admin123
+
+agent:
+  base-url: http://localhost:9000
+  internal-secret: test-agent-secret
+
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:3001
+
+storage:
+  bucket-name: test-bucket
+
+logging:
+  level:
+    com.ironwill.core: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+
